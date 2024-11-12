@@ -1,0 +1,81 @@
+- hosts: all
+  user: zhihe
+  gather_facts: "{{ set_gather_facts | default(True)}}"
+  vars:
+    COLLECTIONS_PATHS: 2
+  tasks:
+    - name: test
+      debug:
+       msg: "{{ ansible_os_family }} {{ ansible_kernel_version }}"
+
+    - name: "设置login.defs"
+      debug:
+        msg: "{{ item.key|upper }}"
+      with_items: "{{ login_set }}"
+
+    - name: "设置login.defs"
+      ansible.builtin.lineinfile:
+         path: /etc/login.defs
+         regexp: '^{{ item.key|upper }}'
+         line: '{{ item.key|upper }}    {{ item.value }}'
+      with_items: "{{ login_set }}"
+
+    - name: "设置密码复杂度-1"
+      ansible.builtin.stat:
+        path: "/lib/x86_64-linux-gnu/security/pam_pwquality.so"
+      register: __pam_pwquality_is_installed
+      check_mode: false
+
+
+    - name: "设置密码复杂度-2 [安装so模块,配置密码复杂度]"
+      when:
+        - ansible_os_family | lower == "debian"
+        - not __pam_pwquality_is_installed.stat.exists
+      block:
+         - name: "拷贝.deb文件到目标主机"
+           ansible.builtin.copy:
+              src: "{{ pam_password_package }}"
+              dest: "/tmp/{{ pam_password_package }}"
+
+         - name: "本地安装"
+           ansible.builtin.apt:
+             deb: "/tmp/{{ pam_password_package }}"
+           register: install_pwq
+           until: install_pwq is success
+           retries: 5
+           delay: 2
+
+    - name: "设置密码复杂度-3"
+      ansible.builtin.lineinfile:
+         path: /etc/pam.d/common-password
+         regexp: 'password.*?required.*?{{ pam_password_so }}'
+         line: "password        required         {{ pam_password_so }} {{ pam_password_config | join(' ') }}"   
+      when:
+        - ansible_os_family | lower == "debian"
+        - __pam_pwquality_is_installed.stat.exists
+
+
+    - name: "设置SSH登录失败锁定-1"
+      ansible.builtin.stat:
+         path: "/usr/sbin/{{ pam_tally2_so.split('.')[0] }}"
+      register: __pam_tally2_is_exists
+      check_mode: false
+
+
+    - name: "设置SSH登录失败锁定-2"
+      ansible.builtin.lineinfile:
+         path: /etc/pam.d/sshd
+         regexp: 'auth.*?required.*?{{ pam_tally2_so }}'
+         line: "auth        required         {{ pam_tally2_so }} {{ pam_tally2_config | join(' ') }}"   
+      when:
+        - ansible_os_family | lower == "debian"
+        - __pam_tally2_is_exists.stat.exists
+
+
+    - name: 设置TMOUT=600
+      ansible.builtin.template:
+          src: tmout.sh
+          dest: /etc/profile.d/tmout.sh
+          owner: root
+          group: root
+          mode: 0644

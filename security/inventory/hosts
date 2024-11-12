@@ -1,0 +1,9 @@
+
+
+
+[all]
+test ansible_host=10.4.56.1 ansible_user=zhihe ansible_password='xxx' ansible_become_pass='xxx'
+
+[mysql]
+xx
+

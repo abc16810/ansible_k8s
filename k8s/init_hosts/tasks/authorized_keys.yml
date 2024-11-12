@@ -1,0 +1,45 @@
+---
+- name: 确保用户生成 ssh key 
+  user:
+    name: "{{ key_username | default('root') }}"
+    generate_ssh_key: yes
+    ssh_key_bits: 2048
+    ssh_key_file: ".ssh/id_rsa"
+  register: h_pub
+
+- debug:
+   msg: "{{ h_pub }}"
+
+- name: 将ssh key base64加密
+  slurp:
+    src: "{{ h_pub.home}}/.ssh/id_rsa.pub"
+  register: key
+
+- name: 为每个主机注册fact pub key
+  set_fact:
+     ssh_pubkey: "{{ key.content }}"
+
+- name: 本地生成脚本文件 authorized keys
+  template:
+    src: "key-insert.sh.j2"
+    dest: "/var/tmp/ssh-key.sh"
+    mode: "0755"
+  delegate_to: localhost
+  vars:
+    ansible_python_interpreter: "/usr/bin/python"
+
+- name: 复制模板化的 authorized keys 文件脚本
+  copy:
+    src: "/var/tmp/ssh-key.sh"
+    dest: "/var/tmp/ssh-key.sh"
+    mode: "0755"
+
+- name: 运行 authorized keys 脚本文件
+  command: "/var/tmp/ssh-key.sh"
+  register: key_create
+  changed_when: key_create.rc == 3
+  failed_when:
+    - key_create.rc != 3
+    - key_create.rc != 0
+
+

@@ -1,0 +1,11 @@
+{
+{% if registry_mirrors is defined %}
+ "registry-mirrors": [
+   {% for item in registry_mirrors %}
+      "{{ item }}"{% if not loop.last %},{% endif %}
+   {% endfor %}
+]
+{% else %}
+
+{% endif %}
+}

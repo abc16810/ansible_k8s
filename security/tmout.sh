@@ -1,0 +1,3 @@
+#
+TMOUT=600
+export TMOUT

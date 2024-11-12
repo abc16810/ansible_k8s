@@ -1,0 +1,61 @@
+---
+
+set_gather_facts: yes # 获取主机setup
+
+#重新设置主机名
+set_hosts: yes
+
+# 配置hosts文件
+set_host_manage_hosts_file: yes
+
+
+## 免密钥登录用户 如果不指定则为root
+key_username: root
+
+
+# 配置安装docker
+config_docker: yes
+docker_version_rhel_package: 20.10.6
+registry_mirrors:
+  - https://lb3ud90h.mirror.aliyuncs.com
+  - https://registry.docker-cn.com
+docker_services:
+  - docker
+  - docker.socket
+
+# 禁用不必要的服务
+disable_servers:
+     - bluetooth
+     - cups
+     - ip6tables
+     - postfix
+
+
+# 禁用IPv6
+IPV6_options:
+    - { key: 'net.ipv6.conf.all.disable_ipv6', value: 1 }
+    - { key: 'net.ipv6.conf.default.disable_ipv6', value: 1 }
+    - { key: 'net.ipv6.conf.lo.disable_ipv6', value: 1 }
+
+# 设置/proc/sys/vm/swappiness 最大值为 
+vm_swappiness: 0
+
+
+
+tuned_linux_kernel:
+   - {key: 'net.ipv4.ip_forward', value: 1}
+   - {key: 'net.bridge.bridge-nf-call-ip6tables', value: 1}
+   - {key: 'net.bridge.bridge-nf-call-iptables', value: 1}
+   - {key: 'net.ipv4.conf.all.rp_filter', value: 0}  #默认1
+   - {key: 'net.ipv4.conf.default.rp_filter', value: 0}  #默认1
+   - {key: 'net.ipv4.conf.default.arp_announce', value: 2} # 默认0
+   - {key: 'net.ipv4.conf.all.arp_announce', value: 2} # 默认0
+   - {key: 'net.ipv4.conf.lo.arp_announce', value: 2} # 默认0
+   - {key: 'net.core.netdev_max_backlog', value: 250000} #增加处理器输入队列的最大长度 默认1000
+   - {key: 'net.core.rmem_max', value: 4194304}  #增加TCP最大和默认缓冲区大小使用(4m)
+   - {key: 'net.core.wmem_max', value: 4194304}  #增加TCP最大和默认缓冲区大小使用
+   - {key: 'net.core.rmem_default', value: 4194304}  #增加TCP最大和默认缓冲区大小使用
+   - {key: 'net.core.wmem_default', value: 4194304}  #增加TCP最大和默认缓冲区大小使用
+   - {key: 'net.ipv4.tcp_rmem', value: 4096       87380   4194304}  #增加内存阈值以防止丢包 第1个值为最小值，第2个值为默认值（会被rmem_default覆盖），第3个值为最大值。
+   - {key: 'net.ipv4.tcp_wmem', value: 4096       65536   4194304}  #增加内存阈值以防止丢包 第1个值为最小值，第2个值为默认值（会被rmem_default覆盖），第3个值为最大值。
+   - {key: 'net.ipv4.tcp_adv_win_scale', value: 1} #将套接字缓冲区设置为在TCP窗口大小和应用程序缓冲区之间平均分配

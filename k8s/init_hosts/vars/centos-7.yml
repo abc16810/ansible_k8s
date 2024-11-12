@@ -1,0 +1,40 @@
+---
+
+##最低的内核版本(最新7.9)
+k8s_host_required_kernel: 3.10.0-1160.31.1.el7.x86_64
+
+
+## 每个节点必要的安装包
+package_list:
+     - libselinux-python
+     - yum-utils
+     - ntp
+     - curl
+     - rpm
+     - tar
+     - unzip
+     - wget
+     - vim
+     - net-tools
+     - lsof
+     - nfs-utils
+
+## 移除旧的docker 安装包
+old_docker_remove_packages:
+     - docker
+     - docker-client
+     - docker-client-latest 
+     - docker-common
+     - docker-latest
+     - docker-latest-logrotate
+     - docker-logrotate
+     - docker-engine
+
+#安装doc_packages:
+docker_packages:
+   - name: docker-ce-{{ docker_version_rhel_package }}
+     state: present
+   - name: docker-ce-cli-{{ docker_version_rhel_package }}
+     state: present
+   - containerd.io
+

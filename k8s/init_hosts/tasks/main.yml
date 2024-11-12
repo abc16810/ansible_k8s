@@ -1,0 +1,139 @@
+---
+# tasks file for init_hosts
+
+- name: 获取不同的操作系统变量
+  include_vars: "{{ item }}"
+  with_first_found:
+    - "{{ ansible_distribution | lower }}-{{ ansible_distribution_version | lower }}.yml"
+    - "{{ ansible_distribution | lower }}-{{ ansible_distribution_major_version | lower }}.yml"
+    - "{{ ansible_os_family | lower }}-{{ ansible_distribution_major_version | lower }}.yml"
+    - "{{ ansible_distribution | lower }}.yml"
+    - "{{ ansible_os_family | lower }}.yml"
+  tags:
+    - always
+
+- include_tasks: setup-RedHat.yml
+  when: ansible_os_family == 'RedHat'
+  tags:
+    - always
+
+- include_tasks: setup-Debian.yml
+  when: ansible_os_family == 'Debian'
+  tags:
+    - always
+
+- include_tasks: setup-Suse.yml
+  when: ansible_os_family == 'Suse'
+  tags:
+    - always
+
+
+
+- name: 设置主机名
+  hostname:
+     name: "{{ item|replace('_', '-') }}"
+  with_items: "{{ groups['all'] }}"
+  when: 
+    - hostvars[item].ansible_hostname != item
+    - ansible_default_ipv4.address == hostvars[item].ansible_default_ipv4.address
+    - set_hosts | bool
+  tags:
+    - set-hosts
+
+- name: 设置FQDN /etc/sysconfig/network
+  lineinfile: 
+      dest: /etc/sysconfig/network 
+      regexp: '^NETWORKING' 
+      line: 'NETWORKING=yes'
+
+
+# 在所有的节点上配置hosts文件
+- name: 配置/etc/hosts 文件
+  include_tasks: set_update_hosts_file.yml
+  when:
+    - set_host_manage_hosts_file | bool
+  tags:
+    - set-hosts-config
+
+- name: 主节点 ssh key 免秘钥登录设置
+  include_tasks: authorized_keys.yml
+  when: inventory_hostname in groups['master']
+  tags:
+    - set-hosts-config
+    - set-ssh
+
+- name: 设置 nofile (默认1024)
+  template:
+    src: "nofile.conf.j2"
+    dest: "/etc/security/limits.d/nofile.conf"
+    mode: "6440"
+    owner: "root"
+    group: "root"
+
+
+- name: 禁用其它服务
+  service:
+    name: "{{ item }}"
+    enabled: no
+    state: "stopped"
+  failed_when: false
+  with_items: "{{ disable_servers }}"
+  register: _stop
+  until: _stop is success
+  retries: 5
+  delay: 2
+
+
+- name: 检测selinux 的状态
+  command: getenforce
+  register: selinuxstatus
+  changed_when: false
+  failed_when: false
+  check_mode: no
+
+- name: 禁用Selinux 
+  selinux:
+    state: disabled
+  when:
+    - selinuxstatus.stdout != 'Disabled'
+  notify: 
+     - reboot system
+
+- name: 启动ntpd
+  service:
+     name: "ntpd"
+     state: restarted
+     enabled: yes
+  tags:
+     - ntp_start
+
+- name: 禁用IPv6
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: "{{ item.set|default('yes') }}"
+    state: "{{ item.state|default('present') }}"
+    reload: "{{ item.reload|default('yes') }}"
+  failed_when: false
+  with_items: "{{ IPV6_options }}"
+
+- name: 设置/proc/sys/vm/swappiness
+  sysctl:
+    name: "vm.swappiness"
+    value: "{{ vm_swappiness }}"
+    sysctl_set: "yes"
+    state: present
+    reload: "yes"
+  failed_when: false
+  tags:
+   - set_swap
+
+- name: 优化内核信息
+  sysctl:
+     name: "{{ item.key }}"
+     value: "{{ item.value }}"
+     sysctl_set: "{{ item.set|default('yes') }}"
+     state: "{{ item.state|default('present') }}"
+     reload: "{{ item.reload|default('yes') }}"
+  failed_when: false
+  with_items: "{{ tuned_linux_kernel }}"

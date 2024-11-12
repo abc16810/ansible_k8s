@@ -1,0 +1,97 @@
+---
+- name: 检测内核版本（最新的内核）
+  fail:
+    msg: >
+      错误的内核版本
+      [ {{ ansible_kernel }} < {{ k8s_host_required_kernel }} ]
+      在继续之前解决这个问题（yum update 升级内核）.
+  when:
+     - ansible_kernel is version_compare(k8s_host_required_kernel, '<')
+
+
+- name: 禁用 防火墙
+  service:
+    name: firewalld
+    enabled: no
+    state: "stopped"
+  register: _stop
+  until: _stop is success
+  retries: 5
+  delay: 2
+  when: 
+     - ansible_distribution_major_version == "7"
+
+- name: 安装必要的yum 包
+  package:
+    name: "{{ package_list }}"
+    state: present
+  when: ansible_pkg_mgr | lower  == "yum"
+  tags:
+    - set_hosts-config
+
+
+- name: 卸载老版的docker安装包
+  package:
+    name: "{{ old_docker_remove_packages }}"
+    state: absent
+  when:
+     - ansible_pkg_mgr | lower  == "yum"
+     - config_docker | bool
+  tags:
+    - set-docker
+
+- name: 设置docker相关yum 源
+  shell: |
+    yum-config-manager \
+    --add-repo \
+    https://download.docker.com/linux/centos/docker-ce.repo
+  args:
+    warn: no
+    executable: /bin/bash
+  tags:
+    - set-docker
+
+- name: 安装docker包
+  package:
+    name: "{{ item.name | default(item) }}"
+    state: "{{ item.state | default('present') }}"
+  when: ansible_pkg_mgr | lower  == "yum"
+  with_items: "{{ docker_packages }}"
+  tags:
+    - set-docker
+
+- name: 确保/etc/docker目录存在
+  file:
+    path: "/etc/docker"
+    state: "directory"
+    mode: "0755"
+  tags:
+    - set-docker
+
+- name: 确保docker处于停止状态
+  service:
+    name: "{{ item }}"
+    state: "stopped"
+  with_items: "{{ docker_services }}" 
+  register: _stop
+  until: _stop is success
+  retries: 5
+  delay: 2
+  tags:
+    - set-docker
+
+- name: 配置docker改用阿里源
+  template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+  tags:
+    - set-docker
+
+- name: Restart docker
+  service:
+    name: docker
+    enabled: yes
+    state: "restarted"
+  tags:
+    - set-docker

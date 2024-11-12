@@ -1,0 +1,28 @@
+---
+login_set: 
+ - { key: 'pass_max_days', value: 90 }
+ - { key: 'pass_min_days', value: 1 }
+ - { key: 'pass_min_len', value: '8' }
+ - { key: 'pass_warn_age', value: '7' }
+
+
+pam_password_so: pam_pwquality.so
+pam_password_package: "libpam-pwquality_1.4.2-1build1_amd64.deb"
+pam_password_config:
+  - try_first_pass 
+  - local_users_only 
+  # - difok=3 # new and old passwd diff
+  - minlen=8 
+  - ucredit=-1 
+  - lcredit=-1 
+  - ocredit=-1 
+  - dcredit=-1 
+  - retry=3
+
+
+pam_tally2_so: pam_tally2.so
+pam_tally2_config:
+  - deny=6
+  - unlock_time=600
+  - even_deny_root
+  - root_unlock_time=1800
